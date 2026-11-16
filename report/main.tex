@@ -1,0 +1,1202 @@
+\documentclass[conference]{IEEEtran}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage[hidelinks]{hyperref}
+\graphicspath{{figures/}}
+\renewcommand{\dbltopfraction}{0.95}
+\renewcommand{\dblfloatpagefraction}{0.65}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{definition}{Definition}
+\newcommand{\OPT}{\operatorname{OPT}}
+\lstdefinestyle{pseudocode}{
+  basicstyle=\ttfamily\scriptsize,
+  columns=fullflexible,
+  keepspaces=true,
+  breaklines=true,
+  frame=single,
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  xleftmargin=1.6em,
+  framexleftmargin=1.2em,
+  showstringspaces=false,
+  tabsize=2
+}
+\lstset{style=pseudocode}
+
+\title{Maximum Flow in Practice:\\Optimal Cloud Task Assignment}
+\author{\IEEEauthorblockN{Anushri Neramballi Raghavendra}
+\IEEEauthorblockA{Department of Computer and Information Science\\
+University of Florida\\
+Email: neramballiraghaa@ufl.edu}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Cloud platforms must allocate tasks to compatible servers without exceeding
+available execution capacity. This report studies a static assignment model
+in which each indivisible task consumes one server slot and may be assigned
+at most once. The problem is formulated as capacitated bipartite matching
+and reduced to maximum flow. The reduction preserves feasibility and
+objective values in both directions, and integer capacities guarantee an
+integral optimal flow. An end-to-end algorithm constructs the network,
+executes Dinic's algorithm, and extracts an optimal assignment. Its general
+worst-case running time is
+$O((n+m+2)^2(n+m+r))$, with $O(n+m+r)$ space, where $n$, $m$, and $r$
+are the numbers of tasks, servers, and eligible pairs. A Java implementation
+and reproducible synthetic benchmark provide experimental verification.
+The observed measurements are analyzed separately from the theoretical
+worst-case guarantee.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Cloud computing, task assignment, capacitated bipartite matching,
+maximum flow, Dinic's algorithm.
+\end{IEEEkeywords}
+
+\section{Introduction}
+This report studies a practical cloud placement problem using a
+polynomial-time reduction to maximum flow. Tasks have compatibility
+requirements, servers have finite execution slots, and the objective is
+to admit as many tasks as possible during one scheduling interval.
+The treatment follows the problem-to-algorithm structure: the real-world
+setting, its abstraction, the reduction and proof, the complete algorithm,
+its complexity, an interpretation in the application domain, and experiments.
+
+Section~\ref{sec:cloud-problem} presents the Cloud Task Assignment part
+of the project. It models feasible placements as capacitated bipartite
+matching, constructs a flow network, and uses Dinic's algorithm to obtain
+an optimal assignment. The experiments characterize measured execution
+on synthetic inputs without treating random-input behavior as a proof
+of the worst-case bound. The appendices contain the complete Java
+implementation and a disclosure of AI-assisted development.
+
+\section{Problem 1: Maximum Flow---Cloud Task Assignment}
+\label{sec:cloud-problem}
+\subsection{Introduction}
+Cloud computing platforms execute computational tasks on heterogeneous
+servers. Software runtimes, processor architectures, accelerators, and
+security configurations may restrict the servers eligible to execute a
+particular task. Meanwhile, each server has a bounded number of available
+task slots. An assignment that ignores compatibility is infeasible, and
+an assignment that ignores available slots can overload a server.
+
+For example, a task requiring a GPU can execute only on a compatible
+GPU-enabled server, whereas another task may require a particular runtime.
+A task that can use several servers should not unnecessarily occupy the
+only server eligible for a more restricted task. Independent greedy
+decisions can therefore leave avoidable rejections even when capacity is
+available elsewhere.
+
+The objective is to admit as many tasks as possible during one scheduling
+interval. This is meaningful when tasks have equal admission value: it
+minimizes the number of unassigned requests under the modeled restrictions.
+It does not directly optimize completion time, fairness, energy, or revenue.
+The model applies to admission and placement with preallocated execution
+slots rather than to unrestricted multidimensional resource scheduling.
+
+\subsection{Problem Setting and Abstraction}
+\subsubsection{Inputs and Assumptions}
+Let $T=\{t_1,\ldots,t_n\}$ be the task set and
+$S=\{s_1,\ldots,s_m\}$ the server set, with $T\cap S=\varnothing$.
+Let $R\subseteq T\times S$ be the eligibility relation, containing each
+eligible pair once, and write $r=|R|$. Each server $s_j$ has a capacity
+$c_j\in\mathbb{Z}_{\geq0}$.
+
+The model assumes the following:
+\begin{enumerate}
+\item Eligibility and capacities remain fixed during the scheduling interval.
+\item Each task is indivisible, occupies exactly one slot on any eligible
+server, and may be assigned to at most one server.
+\item Slots on a server are interchangeable. Eligibility and slot capacity
+capture all placement constraints.
+\item Tasks have equal admission value and introduce no precedence,
+communication, affinity, or additional shared-resource constraints.
+\item Leaving tasks unassigned is permitted. Servers need not be filled.
+\end{enumerate}
+In particular, hardware heterogeneity is represented by eligibility and slot
+counts. If resource usage depends on task combinations in a way that cannot
+be represented by these quantities, the equivalence proved below does not
+apply to that richer problem.
+
+\subsubsection{Integer Programming Formulation}
+Define $a_{ij}=1$ if $(t_i,s_j)\in R$ and $a_{ij}=0$ otherwise. Let
+$x_{ij}=1$ exactly when $t_i$ is assigned to $s_j$. The optimization problem is
+\begin{align}
+\max\quad & \sum_{i=1}^{n}\sum_{j=1}^{m}x_{ij} \label{eq:objective}\\
+\text{subject to}\quad
+&\sum_{j=1}^{m}x_{ij}\leq1 &&\forall i, \label{eq:task}\\
+&\sum_{i=1}^{n}x_{ij}\leq c_j &&\forall j, \label{eq:server}\\
+&x_{ij}\leq a_{ij} &&\forall i,j, \label{eq:eligible}\\
+&x_{ij}\in\{0,1\} &&\forall i,j. \label{eq:binary}
+\end{align}
+The output is the selected task--server pairs, the unassigned tasks, and the
+maximum number of assigned tasks. Constraint~\eqref{eq:task} enforces task
+uniqueness, \eqref{eq:server} enforces server capacity, and
+\eqref{eq:eligible} prohibits ineligible placements.
+
+Every feasible real-world assignment gives a feasible binary vector by
+marking its selected pairs. Conversely, every feasible binary vector defines
+a permitted placement by selecting the entries equal to one. These mappings
+are inverses under the stated assumptions, and
+\eqref{eq:objective} equals the number of assigned tasks.
+
+\subsubsection{Capacitated Bipartite Matching}
+The graph $G=(T\cup S,R)$ is bipartite. For a selected edge set $M\subseteq R$,
+feasibility is equivalent to
+\begin{equation}
+\deg_M(t_i)\leq1,\qquad \deg_M(s_j)\leq c_j.
+\end{equation}
+The objective is to maximize $|M|$. Thus, the abstraction is maximum-cardinality
+bipartite $b$-matching with $b(t_i)=1$ and $b(s_j)=c_j$~\cite{ahuja1993}.
+It reduces to ordinary bipartite matching when all server capacities equal one.
+
+\subsection{Reduction to Maximum Flow}
+\subsubsection{Network Definition}
+Introduce new, distinct source and sink vertices $a$ and $b$. Construct
+$N=(V,E,u,a,b)$ with
+\begin{equation}
+V=\{a,b\}\cup T\cup S
+\end{equation}
+and
+\begin{align}
+E={}&\{(a,t_i):t_i\in T\}\nonumber\\
+ &\cup\{(t_i,s_j):(t_i,s_j)\in R\}\nonumber\\
+ &\cup\{(s_j,b):s_j\in S\}.
+\end{align}
+The capacity function $u:E\to\mathbb{Z}_{\geq0}$ is
+\begin{equation}
+u(e)=\begin{cases}
+1,&e=(a,t_i),\\
+1,&e=(t_i,s_j),\ (t_i,s_j)\in R,\\
+c_j,&e=(s_j,b).
+\end{cases}
+\end{equation}
+Zero-capacity server-to-sink edges are retained. Hence the exact original
+network sizes are
+\begin{equation}
+|V|=n+m+2,\qquad |E|=n+m+r.
+\label{eq:size}
+\end{equation}
+
+\subsubsection{Reduction Algorithm and Encoding Size}
+\leavevmode\par
+\begin{lstlisting}[caption={Reduction: network construction only.},label={lst:reduce}]
+BUILD-NETWORK(T, S, R, c):
+  create distinct source a and sink b
+  create one vertex per task and server
+  initialize empty adjacency lists
+  references = empty list
+  for each task t_i:
+    ADD-EDGE(a, t_i, 1)
+  for each (t_i, s_j) in R:
+    edge = ADD-EDGE(t_i, s_j, 1)
+    append (i, j, edge) to references
+  for each server s_j:
+    ADD-EDGE(s_j, b, c_j)
+  return (network, references, a, b)
+\end{lstlisting}
+
+With explicit task, server, and eligibility lists, construction uses
+$O(n+m+r)$ graph operations. An eligibility matrix instead requires
+$O(nm)$ scanning time. If $\ell(c_j)$ is the binary encoding length of $c_j$,
+the output encoding requires
+\begin{equation}
+O\!\left((n+m+r)\log(n+m+2)+\sum_j\ell(c_j)\right)
+\end{equation}
+bits under a conventional explicit graph encoding. Each capacity is copied
+once. No step creates $c_j$ vertices or edges, so large capacities do not
+cause a pseudopolynomial expansion.
+
+The reduction constructs an instance; it does not compute a maximum flow.
+For the decision version, an assignment threshold $k$ is preserved: the
+question becomes whether the constructed network admits flow of value at
+least $k$.
+
+\subsection{Proof of Correctness}
+A feasible flow satisfies $0\leq f(e)\leq u(e)$ and conservation at all
+vertices except $a$ and $b$. Its value is
+$|f|=\sum_i f(a,t_i)$ because $a$ has no incoming original edges.
+
+\begin{lemma}[Assignment to flow]
+Every feasible assignment of $k$ tasks induces a feasible integral flow of
+value $k$ in $N$.
+\end{lemma}
+\begin{proof}
+Let $M\subseteq R$ be a feasible assignment with $|M|=k$. Set
+$f(t_i,s_j)=1$ for pairs in $M$ and zero for other eligible pairs. Define
+\begin{align}
+f(a,t_i)&=\sum_{j:(t_i,s_j)\in R}f(t_i,s_j),\\
+f(s_j,b)&=\sum_{i:(t_i,s_j)\in R}f(t_i,s_j).
+\end{align}
+Task uniqueness bounds each $f(a,t_i)$ by one. Eligible middle edges carry
+zero or one, and no ineligible edge is used because $M\subseteq R$.
+Server feasibility bounds $f(s_j,b)$ by $c_j$. All flows are nonnegative.
+The two definitions establish conservation at each task and server vertex.
+Thus $f$ is feasible and integral, and
+\begin{equation}
+|f|=\sum_i f(a,t_i)=\sum_{(t_i,s_j)\in R}f(t_i,s_j)=k.
+\end{equation}
+\end{proof}
+
+\begin{lemma}[Integral flow to assignment]
+Every integral feasible flow of value $k$ induces a feasible assignment of
+exactly $k$ distinct tasks.
+\end{lemma}
+\begin{proof}
+Set $M_f=\{(t_i,s_j)\in R:f(t_i,s_j)=1\}$. Each middle edge has capacity
+one, so integrality implies its flow is either zero or one. Every selected
+pair is eligible by construction. Conservation and source-edge capacity give
+\begin{equation}
+\deg_{M_f}(t_i)=\sum_j f(t_i,s_j)=f(a,t_i)\leq1,
+\end{equation}
+where the sum ranges over eligible neighbors. Similarly,
+\begin{equation}
+\deg_{M_f}(s_j)=\sum_i f(t_i,s_j)=f(s_j,b)\leq c_j.
+\end{equation}
+Therefore tasks are unique and server capacities are respected. Finally,
+\begin{equation}
+|M_f|=\sum_{(t_i,s_j)\in R}f(t_i,s_j)=\sum_i f(a,t_i)=k.
+\end{equation}
+Because no task appears twice, these edges assign exactly $k$ distinct tasks.
+\end{proof}
+
+\begin{theorem}[Equality of optimal values]
+The maximum feasible assignment cardinality equals the maximum $a$--$b$
+flow value in $N$.
+\end{theorem}
+\begin{proof}
+The first lemma implies $\OPT_{\mathrm{CTA}}\leq\OPT_{\mathrm{MF}}$.
+All capacities are integers, so the integral maximum-flow theorem guarantees
+the existence of an integral maximum flow~\cite{ahuja1993}. Applying the second lemma to
+that flow gives $\OPT_{\mathrm{MF}}\leq\OPT_{\mathrm{CTA}}$. Together,
+\begin{equation}
+\boxed{\OPT_{\mathrm{CTA}}=\OPT_{\mathrm{MF}}.}
+\end{equation}
+Integrality asserts the existence of an integral optimum, not that every
+feasible or maximum flow is integral. Dinic's algorithm with integer
+capacities produces the integral optimum needed for extraction.
+\end{proof}
+
+The polynomial construction and objective-preserving mappings establish a
+polynomial-time reduction from Cloud Task Assignment to Maximum Flow.
+
+\subsection{Complete Dinic-Based Algorithm}
+The algorithm uses Dinic's layered residual-network approach~\cite{dinic1970}.
+\subsubsection{Residual Representation}
+For each original edge, store a forward residual record and a paired reverse
+record. Each record contains its destination, residual capacity, and a link
+to its reverse. Initially, residual capacities are the original capacity
+and zero, respectively. Augmenting on a reverse edge cancels previously
+sent original-edge flow. The residual representation stores $2|E|$ records.
+
+\begin{lstlisting}[caption={Paired residual-edge insertion.}]
+ADD-EDGE(u, v, capacity):
+  forward = new Edge(v, capacity)
+  reverse = new Edge(u, 0)
+  forward.reverse = reverse
+  reverse.reverse = forward
+  append forward to adj[u]
+  append reverse to adj[v]
+  return forward
+\end{lstlisting}
+
+\subsubsection{Level Graph and Blocking Flow}
+\leavevmode\par
+\begin{lstlisting}[caption={Breadth-first search of the residual graph.}]
+BUILD-LEVELS(a, b):
+  level[v] = -1 for every vertex v
+  level[a] = 0
+  Q = queue containing a
+  while Q is not empty:
+    u = remove front of Q
+    for e in adj[u]:
+      if e.residual > 0 and level[e.to] == -1:
+        level[e.to] = level[u] + 1
+        append e.to to Q
+  return level[b] != -1
+\end{lstlisting}
+
+The following explicit-stack DFS matches the Java implementation. Array
+$P[0..d]$ stores the current vertex path, $H[0..d-1]$ its residual edges,
+and $B[d]$ the path bottleneck. The current-edge pointer $q[u]$ persists
+throughout a phase and advances past edges that cannot contribute further
+flow in that phase.
+
+\begin{lstlisting}[caption={Iterative DFS augmentation in one level graph.}]
+SEND-FLOW(a, b, limit):
+  d = 0
+  P[0] = a
+  B[0] = limit
+  while true:
+    u = P[d]
+    if u == b:
+      amount = B[d]
+      for h = 0 to d-1:
+        H[h].residual -= amount
+        H[h].reverse.residual += amount
+      return amount
+
+    while q[u] < length(adj[u]):
+      e = adj[u][q[u]]
+      if e.residual > 0 and
+          level[e.to] == level[u] + 1:
+        break
+      q[u] += 1
+
+    if q[u] == length(adj[u]):
+      if d == 0:
+        return 0
+      d -= 1
+      q[P[d]] += 1
+    else:
+      e = adj[u][q[u]]
+      H[d] = e
+      P[d+1] = e.to
+      B[d+1] = min(B[d], e.residual)
+      d += 1
+\end{lstlisting}
+
+\begin{lstlisting}[caption={Dinic maximum flow.}]
+DINIC(a, b, n):
+  value = 0
+  while BUILD-LEVELS(a, b):
+    q[v] = 0 for every vertex v
+    while true:
+      pushed = SEND-FLOW(a, b, n)
+      if pushed == 0:
+        break
+      value += pushed
+  return value
+\end{lstlisting}
+The limit $n$ is sufficient because total source capacity is $n$. If
+$n=0$, the initial BFS cannot reach the sink and no DFS is called.
+
+\subsubsection{Assignment Extraction and Overall Procedure}
+References to the original middle edges are retained during construction.
+Each has capacity one, so its flow equals one minus its final forward
+residual capacity.
+
+\begin{lstlisting}[caption={Complete assignment algorithm.}]
+CLOUD-TASK-ASSIGNMENT(T, S, R, c):
+  (network, references, a, b) =
+      BUILD-NETWORK(T, S, R, c)
+  value = DINIC(a, b, |T|)
+  assignment[i] = UNASSIGNED for every task i
+  count = 0
+  for (i, j, edge) in references:
+    if edge.residual == 0:
+      assert assignment[i] == UNASSIGNED
+      assignment[i] = j
+      count += 1
+  assert count == value
+  return (value, assignment)
+\end{lstlisting}
+
+\subsubsection{Termination and Algorithmic Correctness}
+\begin{theorem}
+The complete algorithm terminates and returns a maximum-cardinality feasible
+task assignment.
+\end{theorem}
+\begin{proof}
+The initial zero flow is feasible and integral. Every successful DFS
+augmentation follows a residual source-to-sink path and is bounded by its
+bottleneck. Paired residual updates preserve edge-capacity constraints and
+flow conservation; integer bottlenecks preserve integrality.
+
+During a phase, DFS follows edges whose levels increase by one, so the
+explicit stack cannot contain a cycle and has depth at most $|V|-1$.
+Within one DFS call, $B[d]$ is the minimum residual capacity of the current
+path prefix. Backtracking advances the parent's current-edge pointer;
+restarting after an augmentation reconstructs the path and its bottlenecks.
+
+Augmentation creates reverse residual capacity only toward lower levels.
+Consequently, no new admissible edges are created in the current phase.
+An exhausted edge or vertex need not be revisited, and an admissible edge
+that becomes saturated remains saturated for that phase. Each successful
+augmentation saturates at least one admissible edge. Thus repeated DFS
+calls terminate with a blocking flow.
+
+After a blocking flow, any remaining residual source-to-sink path has
+strictly greater shortest-path length. There are fewer than $|V|$
+successful phases, so Dinic terminates. At termination there is no residual
+source-to-sink path; therefore its feasible flow is maximum by the
+max-flow/min-cut characterization~\cite{ford1956}. The integral
+flow-to-assignment lemma proves that extraction yields a feasible assignment
+of the same value. The equality-of-optima theorem proves optimality.
+\end{proof}
+
+\subsection{Running Time and Space Analysis}
+With adjacency-list input, construction costs $O(n+m+r)$ and extraction costs
+$O(n+r)$. Write $V=|V|$ and $E=|E|$ in the following bounds. BFS costs
+$O(V+E)$ per phase. Current-edge pointers advance across at most $O(E)$
+records per phase. There are at most $O(E)$ successful augmentations in a
+phase, each traversing $O(V)$ edges, giving the general $O(VE)$ blocking-flow
+bound. Fewer than $V$ successful phases give Dinic's general $O(V^2E)$
+bound~\cite{dinic1970,ahuja1993}.
+
+Using~\eqref{eq:size}, the overall assignment time is
+\begin{align}
+&O(n+m+r)+O((n+m+2)^2(n+m+r))\nonumber\\
+&\hspace{3em}+O(n+r)
+=O((n+m+2)^2(n+m+r)).
+\end{align}
+The network, extraction references, level and current-edge arrays, queue,
+explicit path stack, and output require $O(V+E)=O(n+m+r)$ machine words.
+When $n=m=0$, the algorithm uses constant time and space. When only one
+set is empty, the implementation still incurs construction costs
+proportional to the input representation.
+
+These are standard unit-cost graph-operation bounds. Binary-encoded
+arbitrary-precision capacities add arithmetic costs polynomial in their bit
+lengths. The Java implementation uses \texttt{long} residual values and
+\texttt{int} vertex indices and capacities; inputs must fit those supported
+representations and available memory. Synthetic generation scans all
+$nm$ potential eligibility pairs and is outside the timed assignment
+algorithm. The general Dinic bound is a valid upper bound; no tightness
+claim for this restricted family is made.
+
+\subsection{Explanation in the Language of the Problem Domain}
+In the cloud platform, a unit of flow represents one admitted task.
+A source-to-task edge permits admission at most once. Eligibility edges
+list the servers that can execute that task, and a server-to-sink edge
+limits its total admitted workload. Dinic's residual edges represent
+reconsidering an earlier placement: a flexible task can be moved to an
+alternative compatible server so a more restricted task can use the
+released slot. Such a reassignment does not split or duplicate a task.
+When no residual admission path remains, the maximum-flow theorem
+certifies that no feasible placement can admit more tasks under the
+modeled constraints. Unassigned tasks must wait for a later interval
+or a change in available capacity or eligibility.
+
+\subsection{Worked Example and Execution Trace}
+Consider five tasks, three servers, and capacities $(c_1,c_2,c_3)=(1,2,2)$.
+The eligibility matrix is
+\begin{equation}
+A=\begin{array}{c|ccc}
+ &s_1&s_2&s_3\\\hline
+t_1&1&1&0\\
+t_2&1&0&0\\
+t_3&0&1&1\\
+t_4&0&1&0\\
+t_5&0&0&1
+\end{array}.
+\end{equation}
+The network has ten vertices and fifteen original edges: five source edges,
+seven eligibility edges, and three sink edges. Source and eligibility
+edges have capacity one; sink edges have capacities one, two, and two.
+
+With task and server indices examined in increasing order, the first BFS
+finds task vertices at level one, servers at level two, and the sink at
+level three. The first blocking flow sends one unit along each path
+\begin{align*}
+&a\to t_1\to s_1\to b,\quad a\to t_3\to s_2\to b,\\
+&a\to t_4\to s_2\to b,\quad a\to t_5\to s_3\to b.
+\end{align*}
+The flow value is four. Task $t_2$ cannot yet use $s_1$ because its sink
+edge is saturated. In the next phase, BFS finds a residual path with
+vertex levels $0,1,2,3,4,5,6,7$:
+\begin{equation}
+a\to t_2\to s_1\to t_1\to s_2\to t_3\to s_3\to b.
+\end{equation}
+The edges $s_1\to t_1$ and $s_2\to t_3$ are reverse residual edges. Sending
+one unit cancels two earlier placements and replaces them with a reassignment
+that increases total flow to five. Extraction gives
+\begin{equation}
+X^*=\begin{array}{c|ccc}
+ &s_1&s_2&s_3\\\hline
+t_1&0&1&0\\
+t_2&1&0&0\\
+t_3&0&0&1\\
+t_4&0&1&0\\
+t_5&0&0&1
+\end{array}.
+\end{equation}
+All source edges carry one unit, and sink edges carry $(1,2,2)$. The cut
+containing only $a$ has capacity five. The feasible flow reaches this cut
+capacity, certifying optimality independently of the task-count upper bound.
+
+\subsection{Implementation and Verification}
+The accompanying Java 17 implementation stores adjacency lists, reverse-edge
+indices, integer residual capacities, BFS arrays, and an explicit DFS path
+stack. The complete Java source is reproduced in
+Appendix~\ref{app:java-source}. Every measured repetition constructs a fresh
+network. Assignment extraction initializes an array to $-1$ for unassigned tasks and selects
+eligible edges carrying one unit of flow. Validation checks eligibility,
+server loads, and agreement between assigned-task count and returned flow.
+
+The supplied self-test checks the worked example and compares the algorithm
+with an exhaustive assignment optimizer on 672 tiny generated instances,
+including empty dimensions and zero-capacity cases. These are implementation
+checks rather than a substitute for the proof. The published CSVs contain
+maximum-flow values and timings; the benchmark currently consumes assignments
+internally rather than exporting them. A reusable custom-instance solver
+interface returning both the flow value and assignment array is a useful
+extension of the benchmark entry point.
+
+For additional optimality verification, residual reachability can identify
+the source side of a minimum cut after termination. If that side contains
+task subset $X$ and server subset $Y$, its original capacity is
+\begin{equation}
+n-|X|+|R\cap(X\times(S\setminus Y))|+\sum_{s_j\in Y}c_j.
+\end{equation}
+A feasible assignment whose cardinality equals this capacity is certified
+optimal. This certificate is distinct from feasibility validation alone.
+
+% Reuse the measured results and their existing, verified figure captions.
+% Begin inlined experimental_results.tex
+% Include after \usepackage{graphicx} in an IEEEtran manuscript.
+% Paths assume this file and output/ are copied beside the main manuscript.
+\subsection{Experimental Evaluation}
+\label{sec:experiments}
+
+\subsubsection{Experimental Setup and Aggregation}
+The evaluation uses the existing default benchmark measurements, comprising
+162 parameter--seed cases and 1,458 timed executions. The task counts are
+$n\in\{100,500,1000\}$, the server counts are $m\in\{25,100\}$, and eligibility
+probabilities are $p\in\{0.01,0.1,0.5\}$. Each potential task--server pair is
+independently eligible with probability $p$. The observed number of eligible
+pairs, denoted by $r$, is retained in the analysis rather than replaced by
+its expectation $pnm$. Three capacity distributions are evaluated: fixed
+capacity four; discrete uniform capacity on $\{0,\ldots,8\}$; and skewed
+capacity equal to 40 with probability 0.1 and zero otherwise. All have
+expected capacity four per server, but their realized total capacities differ.
+Seeds 11, 29, and 47 define three instances per parameter setting. For each
+seed, eligibility graphs are shared across capacity distributions.
+
+The recorded environment is OpenJDK 17.0.19 on macOS 26.1, with an aarch64
+architecture, 10 available processors, and a fixed 512-MiB initial and maximum
+Java heap. The available data contain one JVM process. Each case has five
+discarded warm-up executions and nine measured executions using fresh residual
+networks and \texttt{System.nanoTime()}~\cite{oracleNanoTime}. This API reports
+elapsed-time differences in nanoseconds, but does not guarantee nanosecond
+resolution. Construction includes allocation of
+residual edges and Dinic work arrays. Total time includes construction, maximum
+flow, and assignment extraction; input generation, validation, and CSV output
+are excluded.
+
+Each instance is represented by its median over nine repetitions. Unless
+otherwise stated, plotted central values are medians of these instance medians
+over the three seeds. Error bars span the minimum and maximum seed medians;
+they are descriptive ranges, not confidence intervals. Edge-count plots show
+individual instance medians at their actual $r$ values. All timing coordinates
+come from the recorded measurements. Connecting segments indicate sampled
+trends and do not represent additional observations. Logarithmic runtime axes
+accommodate the measured dynamic range. Reported values are rounded for
+presentation.
+
+\subsubsection{Task Count and Eligibility Edges}
+Figure~\ref{fig:tasks} controls the server count at $m=100$ and uses fixed
+capacity four. At $p=0.1$, increasing $n$ from 100 to 500 and 1,000 increases
+median total time from 0.0184~ms to 0.1145~ms and 0.2411~ms, respectively.
+The corresponding Dinic times are 0.00517~ms, 0.0528~ms, and 0.1140~ms.
+Thus, over the tenfold task-count increase, total time increases by a factor
+of 13.12 and Dinic time by 22.06. These are finite-range growth factors;
+three task counts do not establish an asymptotic empirical exponent.
+Moreover, varying $n$ also changes the realized number of eligibility edges
+and the attainable flow, despite holding $m$, $p$, and per-server capacity fixed.
+
+Figure~\ref{fig:edges} fixes $n=1000$ and $m=100$ and plots time against
+the measured eligibility edge count. Eligibility probability varies to produce
+the different edge counts, so this is not an experiment that changes $r$
+independently of graph topology. For fixed capacities, increasing $p$ from
+0.01 to 0.5 increases the median observed $r$ from 1,014 to 50,116.
+Median total time increases from 0.0870~ms to 1.3490~ms, and Dinic time
+increases from 0.0606~ms to 0.5120~ms. Larger adjacency lists require
+additional allocation and traversal even when the achievable assignment
+cardinality changes little. These observations are consistent with such costs,
+but do not independently identify their contribution.
+
+\begin{figure*}[!t]
+\centering
+\includegraphics[width=\textwidth]{01_runtime_vs_tasks.pdf}
+\caption{Runtime versus task count with $m=100$ and fixed server capacity four.
+Each series holds $p$ fixed. Panels show complete assignment time and Dinic time.
+Points are medians of three per-seed medians; error bars span their full range.
+Both axes are logarithmic.}
+\label{fig:tasks}
+\end{figure*}
+
+\begin{figure*}[!t]
+\centering
+\includegraphics[width=\textwidth]{02_runtime_vs_edges.pdf}
+\caption{Runtime versus observed eligibility edges with $n=1000$, $m=100$,
+and base capacity four. Each point is one instance's median over nine runs.
+Colors and symbols distinguish capacity distributions. Edge counts vary through
+$p\in\{0.01,0.1,0.5\}$; no interpolated or simulated timings are plotted.
+Both axes are logarithmic.}
+\label{fig:edges}
+\end{figure*}
+
+\subsubsection{Server Count and Eligibility Density}
+Figure~\ref{fig:servers} holds $n=1000$ and fixed per-server capacity four.
+At $p=0.1$, increasing $m$ from 25 to 100 increases median total time from
+0.1068~ms to 0.2411~ms and Dinic time from 0.0391~ms to 0.1140~ms.
+This comparison changes both expected eligibility edge count and aggregate
+server capacity; the median maximum flow increases from 100 to 400.
+Only two server counts are available, which precludes a reliable determination
+of the runtime growth law with respect to $m$.
+
+Figure~\ref{fig:density} controls $n=1000$ and $m=100$. For fixed capacities,
+median flow is 399 at $p=0.01$ and 400 at both $p=0.1$ and $p=0.5$.
+Consequently, the substantial runtime increase at higher densities is accompanied
+by almost no improvement in admitted tasks. Median flow for uniform capacities
+is 392, 398, and 398 across these densities; for skewed capacities it is
+77, 320, and 320. The skewed distribution is particularly constrained at low
+density because many eligible edges lead to zero-capacity servers. At $p=0.01$,
+its median total time is 0.0473~ms, compared with 0.0870~ms for fixed capacities.
+This lower runtime is accompanied by fewer assigned tasks and should not be
+interpreted as greater scheduling effectiveness. Realized median aggregate
+capacities are 400, 398, and 320 for the fixed, uniform, and skewed distributions,
+respectively; distribution comparisons therefore do not isolate capacity
+concentration at an identical total capacity.
+
+\begin{figure*}[!t]
+\centering
+\includegraphics[width=\textwidth]{03_runtime_vs_servers.pdf}
+\caption{Runtime versus server count at $n=1000$ and fixed capacity four per
+server. Each series holds $p$ fixed. Points show medians across three seed
+medians, with their full range. Only two server counts are measured; connecting
+segments are visual guides. Runtime axes are logarithmic.}
+\label{fig:servers}
+\end{figure*}
+
+\begin{figure*}[!t]
+\centering
+\includegraphics[width=\textwidth]{04_runtime_vs_density.pdf}
+\caption{Runtime versus eligibility probability at $n=1000$, $m=100$, and
+base capacity four. Capacity distributions have equal expected per-server
+capacity but unequal realized aggregate capacity. Points show medians across
+three seed medians; error bars span their full range. Both axes are logarithmic.}
+\label{fig:density}
+\end{figure*}
+
+\subsubsection{Construction and Maximum-Flow Costs}
+Figure~\ref{fig:components} separates network construction from maximum-flow
+computation. At $n=1000$, $m=100$, and fixed capacities, construction increases
+from 0.0250~ms at $p=0.01$ to 0.8224~ms at $p=0.5$; the corresponding
+Dinic times are 0.0606~ms and 0.5120~ms. Thus, maximum-flow computation
+dominates the component medians in this sparse setting, whereas construction
+is larger in the dense setting. Across all 1,458 measured repetitions, the
+median within-run construction, Dinic, and extraction fractions are 51.0\%,
+47.0\%, and 1.8\%, respectively. These separately computed median fractions
+need not sum to 100\%.
+
+Construction is therefore a material cost in the observed implementation.
+Forward/reverse edge objects and adjacency-list storage provide plausible
+sources of allocation and memory-access overhead. Garbage collection, cache
+behavior, and JVM compilation may also affect timings. The CSV files contain
+no allocation, collection, cache, or phase-count counters, so these explanations
+remain hypotheses rather than measured causal findings. An implementation
+using compact edge arrays would require a separate controlled evaluation.
+
+\begin{figure*}[!t]
+\centering
+\includegraphics[width=\textwidth]{05_construction_vs_dinic.pdf}
+\caption{Network construction and Dinic time at $n=1000$, $m=100$, and base
+capacity four, separated by capacity distribution. Construction includes residual
+edges and algorithm work arrays. Points show medians across three seed medians;
+error bars span their full range. All panels share the runtime scale, and both
+axes are logarithmic. Extraction is included in total time but not in these
+two component series.}
+\label{fig:components}
+\end{figure*}
+
+\subsubsection{Comparison with the Worst-Case Upper Bound}
+The constructed network contains
+\begin{equation}
+V=n+m+2,\qquad E=n+m+r.
+\end{equation}
+Construction and extraction require $O(n+m+r)$ and $O(n+r)$ time,
+respectively. Using Dinic's general $O(V^2E)$ bound, the complete algorithm
+has worst-case upper bound
+\begin{equation}
+O\!\left((n+m+2)^2(n+m+r)\right),
+\end{equation}
+with $O(n+m+r)$ space. This is an upper bound rather than a tight runtime
+prediction for the tested layered networks. In particular, $V^2E$ is an
+operation-count expression without a calibrated conversion to elapsed time.
+
+For the controlled slice $m=100$, $p=0.1$, and fixed capacities, median
+$V^2E$ increases by factors of 41.04 and 274.19 as $n$ increases from
+100 to 500 and 1,000. The corresponding measured total-time factors are
+6.23 and 13.12, and Dinic-time factors are 10.22 and 22.06
+(Fig.~\ref{fig:growth}). Observed growth is therefore much smaller than the
+growth of this general worst-case expression over the measured range.
+This is compatible with the upper bound: random instances need not require
+the worst-case number of blocking-flow phases or edge traversals. Additionally,
+fixed aggregate capacity caps flow at 400 in this slice even as the number
+of tasks increases. The data do not establish which mechanism dominates.
+No theoretical timing curve or synthetic timing observations are introduced.
+
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\columnwidth]{06_observed_growth.pdf}
+\caption{Observed runtime growth relative to $n=100$, with $m=100$, $p=0.1$,
+and fixed capacity four. Each time is the median across three instance medians.
+Total-time growth is 6.23 and 13.12 at $n=500$ and 1,000; Dinic-time growth
+is 10.22 and 22.06. For comparison in the text, the median $V^2E$ expression
+grows by 41.04 and 274.19. Only measured timing ratios are plotted.}
+\label{fig:growth}
+\end{figure}
+
+\subsubsection{Limitations and Validity}
+The results describe small synthetic instances, one JVM process, three input
+seeds, three density values, and two server counts. Five warm-up executions
+do not establish that JIT compilation stabilized. The distinction between
+warm-up, steady-state measurement, and independent JVM invocations is
+important in Java performance evaluation~\cite{georges2007}. Several intervals are only
+a few microseconds long and may be sensitive to timer overhead, scheduling,
+allocation, and background activity. CPU model, RAM, GC events, and per-phase
+algorithm counters are not recorded. The measurements therefore do not
+support hardware-independent performance claims, a statistical model of
+process-level variability, or causal attribution of outliers.
+
+The seed ranges describe variability among three generated inputs, and repeated
+executions of the same input are not independent graph samples. Random case
+ordering reduces systematic ordering effects but does not eliminate JVM or
+machine-state effects. The eligibility model also omits correlated compatibility
+requirements, task priorities, and heterogeneous resource consumption.
+Additional independent JVM forks, longer warm-up checks, larger parameter
+sweeps, and structured or adversarial instances would strengthen subsequent
+evaluation. These random-input measurements neither prove the theoretical
+worst-case bound nor establish a matching lower bound.
+
+
+
+
+
+
+
+% End inlined experimental_results.tex
+
+\section{Conclusion}
+Under the unit-slot assumptions, cloud task admission and placement is
+capacitated bipartite matching. A polynomial-size maximum-flow network
+preserves feasible assignments and their cardinalities, and an integral
+maximum flow yields an optimal assignment. Dinic provides a complete
+polynomial-time solution, including construction and extraction. The Java
+experiments demonstrate reproducible behavior on the sampled synthetic
+instances while leaving worst-case complexity as a mathematical guarantee.
+Future experimental work should strengthen JVM replication and study
+structured eligibility graphs and larger instances before drawing broader
+performance conclusions.
+
+% Begin inlined references.tex
+% IEEE-style bibliography; no BibTeX step is required.
+\begin{thebibliography}{00}
+
+\bibitem{ahuja1993}
+R.~K. Ahuja, T.~L. Magnanti, and J.~B. Orlin,
+\emph{Network Flows: Theory, Algorithms, and Applications}.
+Englewood Cliffs, NJ, USA: Prentice Hall, 1993.
+
+\bibitem{dinic1970}
+E.~A. Dinic, ``Algorithm for solution of a problem of maximum flow in a
+network with power estimation,'' \emph{Soviet Mathematics Doklady},
+vol.~11, pp.~1277--1280, 1970.
+[Online]. Available: \url{https://www.cs.bgu.ac.il/~dinitz/D70.pdf}
+
+\bibitem{ford1956}
+L.~R. Ford, Jr. and D.~R. Fulkerson, ``Maximal flow through a network,''
+\emph{Canadian Journal of Mathematics}, vol.~8, pp.~399--404, 1956,
+doi: \href{https://doi.org/10.4153/CJM-1956-045-5}{10.4153/CJM-1956-045-5}.
+
+\bibitem{oracleNanoTime}
+Oracle, ``System.nanoTime(),'' \emph{Java Platform, Standard Edition 17
+API Specification}. Accessed: Nov.~15, 2026.
+[Online]. Available:
+\url{https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/System.html\#nanoTime()}
+
+\bibitem{georges2007}
+A.~Georges, D.~Buytaert, and L.~Eeckhout,
+``Statistically rigorous Java performance evaluation,''
+in \emph{Proc. 22nd Annual ACM SIGPLAN Conf. Object-Oriented Programming
+Systems, Languages and Applications (OOPSLA)}, 2007, pp.~57--76.
+[Online]. Available:
+\url{https://users.elis.ugent.be/~leeckhou/papers/oopsla07-stat.pdf}
+
+\end{thebibliography}
+
+% End inlined references.tex
+
+% Appendices follow the references in the reference report's two-column style.
+\appendices
+% Begin inlined java_appendix.tex
+\section{Implementation and Reproducibility}
+\label{app:java-source}
+\subsection{Cloud Task Assignment: Java Implementation and Benchmark}
+The following listing reproduces the complete accompanying
+\texttt{CloudTaskBenchmark.java} source, including network construction,
+Dinic's algorithm, assignment extraction, validation, exhaustive small-instance
+checks, synthetic generation, timing, and CSV export. The listing is embedded in this LaTeX source as a snapshot of the accompanying
+implementation. Line wrapping changes presentation only.
+
+\begin{lstlisting}[
+  language=Java,
+  basicstyle=\ttfamily\scriptsize,
+  keywordstyle=\color{blue!55!black},
+  commentstyle=\color{green!30!black},
+  stringstyle=\color{black},
+  numberstyle=\tiny\color{gray},
+  breakatwhitespace=false,
+  breakindent=1.5em,
+  firstnumber=1,
+  caption={Complete Java 17 implementation and reproducible benchmark.},
+  label={lst:java-complete}
+]
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
+import java.util.*;
+
+/** Dependency-free Java 17 benchmark. See BENCHMARK.md for protocol and interpretation. */
+public final class CloudTaskBenchmark {
+    enum Distribution { FIXED, UNIFORM, SKEWED }
+    record Pair(int task, int server) {}
+    record Instance(int n, int m, double p, Distribution distribution, int baseCapacity,
+                    long seed, List<Pair> pairs, int[] capacities) {}
+    record Sample(long construction, long dinic, long extraction, long total, long flow) {}
+    static volatile long blackhole;
+
+    static final class Edge {
+        final int to, reverse;
+        long residual;
+        Edge(int to, int reverse, long residual) {
+            this.to = to; this.reverse = reverse; this.residual = residual;
+        }
+    }
+
+    static final class Network {
+        final ArrayList<Edge>[] adj;
+        final Edge[] assignmentEdges;
+        final int source, sink;
+        final int[] level, next, queue, pathVertex, pathEdge;
+        final long[] bottleneck;
+        @SuppressWarnings("unchecked")
+        Network(Instance in) {
+            int vertices = Math.addExact(Math.addExact(in.n, in.m), 2);
+            source = vertices - 2; sink = vertices - 1;
+            adj = (ArrayList<Edge>[]) new ArrayList<?>[vertices];
+            for (int v = 0; v < vertices; v++) adj[v] = new ArrayList<>();
+            assignmentEdges = new Edge[in.pairs.size()];
+            level = new int[vertices]; next = new int[vertices]; queue = new int[vertices];
+            pathVertex = new int[vertices]; pathEdge = new int[vertices];
+            bottleneck = new long[vertices];
+            for (int i = 0; i < in.n; i++) add(source, i, 1);
+            for (int k = 0; k < in.pairs.size(); k++) {
+                Pair pair = in.pairs.get(k);
+                assignmentEdges[k] = add(pair.task, in.n + pair.server, 1);
+            }
+            for (int j = 0; j < in.m; j++) add(in.n + j, sink, in.capacities[j]);
+        }
+        Edge add(int u, int v, long capacity) {
+            Edge forward = new Edge(v, adj[v].size(), capacity);
+            Edge reverse = new Edge(u, adj[u].size(), 0);
+            adj[u].add(forward); adj[v].add(reverse);
+            return forward;
+        }
+        boolean bfs() {
+            Arrays.fill(level, -1);
+            int head = 0, tail = 0;
+            queue[tail++] = source; level[source] = 0;
+            while (head < tail) {
+                int u = queue[head++];
+                for (Edge e : adj[u]) if (e.residual > 0 && level[e.to] < 0) {
+                    level[e.to] = level[u] + 1;
+                    queue[tail++] = e.to;
+                }
+            }
+            return level[sink] >= 0;
+        }
+        // Iterative equivalent of current-arc DFS: avoids JVM recursion depth limits.
+        long send(long limit) {
+            int depth = 0;
+            pathVertex[0] = source; bottleneck[0] = limit;
+            while (true) {
+                int u = pathVertex[depth];
+                if (u == sink) {
+                    long amount = bottleneck[depth];
+                    for (int d = 0; d < depth; d++) {
+                        Edge e = adj[pathVertex[d]].get(pathEdge[d]);
+                        e.residual -= amount;
+                        adj[e.to].get(e.reverse).residual += amount;
+                    }
+                    return amount;
+                }
+                while (next[u] < adj[u].size()) {
+                    Edge e = adj[u].get(next[u]);
+                    if (e.residual > 0 && level[e.to] == level[u] + 1) break;
+                    next[u]++;
+                }
+                if (next[u] == adj[u].size()) {
+                    if (depth == 0) return 0;
+                    depth--;
+                    next[pathVertex[depth]]++;
+                } else {
+                    Edge e = adj[u].get(next[u]);
+                    pathEdge[depth] = next[u];
+                    pathVertex[depth + 1] = e.to;
+                    bottleneck[depth + 1] = Math.min(bottleneck[depth], e.residual);
+                    depth++;
+                }
+            }
+        }
+        long maxFlow(int n) {
+            long flow = 0;
+            while (bfs()) {
+                Arrays.fill(next, 0);
+                long pushed;
+                while ((pushed = send(n)) != 0) flow += pushed;
+            }
+            return flow;
+        }
+        int[] extract(Instance in) {
+            int[] assignment = new int[in.n];
+            Arrays.fill(assignment, -1);
+            for (int k = 0; k < assignmentEdges.length; k++) {
+                if (assignmentEdges[k].residual == 0) {
+                    Pair p = in.pairs.get(k);
+                    if (assignment[p.task] != -1) throw new AssertionError("Duplicate task");
+                    assignment[p.task] = p.server;
+                }
+            }
+            return assignment;
+        }
+    }
+
+    static Instance generate(int n, int m, double p, Distribution d, int c, long seed) {
+        // Separate streams ensure identical eligibility for all capacity distributions.
+        SplittableRandom eligibility = new SplittableRandom(seed);
+        SplittableRandom capacity = new SplittableRandom(seed ^ 0x6A09E667F3BCC909L);
+        ArrayList<Pair> pairs = new ArrayList<>();
+        for (int i = 0; i < n; i++) for (int j = 0; j < m; j++)
+            if (eligibility.nextDouble() < p) pairs.add(new Pair(i, j));
+        int[] capacities = new int[m];
+        for (int j = 0; j < m; j++) capacities[j] = switch (d) {
+            case FIXED -> c;
+            case UNIFORM -> capacity.nextInt(2 * c + 1);
+            case SKEWED -> capacity.nextInt(10) == 0 ? 10 * c : 0;
+        };
+        return new Instance(n, m, p, d, c, seed, List.copyOf(pairs), capacities);
+    }
+
+    static Sample run(Instance in) {
+        long start = System.nanoTime();
+        Network network = new Network(in);
+        long constructed = System.nanoTime();
+        long flow = network.maxFlow(in.n);
+        long solved = System.nanoTime();
+        int[] assignment = network.extract(in);
+        long extracted = System.nanoTime();
+        validate(in, assignment, flow); // Outside all reported timing intervals.
+        blackhole = blackhole ^ flow ^ Arrays.hashCode(assignment);
+        return new Sample(constructed - start, solved - constructed,
+                          extracted - solved, extracted - start, flow);
+    }
+
+    static void validate(Instance in, int[] assignment, long flow) {
+        int[] loads = new int[in.m];
+        boolean[] eligible = new boolean[in.n];
+        for (Pair p : in.pairs) if (assignment[p.task] == p.server) eligible[p.task] = true;
+        long count = 0;
+        for (int i = 0; i < in.n; i++) if (assignment[i] != -1) {
+            int j = assignment[i];
+            if (j < 0 || j >= in.m || !eligible[i]) throw new AssertionError("Eligibility");
+            loads[j]++; count++;
+        }
+        for (int j = 0; j < in.m; j++)
+            if (loads[j] > in.capacities[j]) throw new AssertionError("Capacity");
+        if (count != flow) throw new AssertionError("Flow/assignment mismatch");
+    }
+
+    // Independent exhaustive optimizer for tiny correctness tests only.
+    static int brute(Instance in, int task, int[] loads) {
+        if (task == in.n) return 0;
+        int best = brute(in, task + 1, loads);
+        for (Pair p : in.pairs) if (p.task == task && loads[p.server] < in.capacities[p.server]) {
+            loads[p.server]++;
+            best = Math.max(best, 1 + brute(in, task + 1, loads));
+            loads[p.server]--;
+        }
+        return best;
+    }
+    static void selfTest() {
+        Instance example = new Instance(5, 3, 7.0 / 15, Distribution.FIXED, 0, 0,
+            List.of(new Pair(0,0), new Pair(0,1), new Pair(1,0), new Pair(2,1),
+                    new Pair(2,2), new Pair(3,1), new Pair(4,2)), new int[]{1,2,2});
+        if (run(example).flow != 5) throw new AssertionError("Worked example");
+        for (int n = 0; n <= 6; n++) for (int m = 0; m <= 3; m++)
+            for (Distribution d : Distribution.values()) for (long seed = 0; seed < 8; seed++) {
+                Instance in = generate(n, m, (seed % 3) / 2.0, d, (int)(seed % 3), seed);
+                if (run(in).flow != brute(in, 0, new int[m]))
+                    throw new AssertionError("Exhaustive comparison failed");
+            }
+        System.out.println("Self-test passed: worked example and 672 tiny instances.");
+    }
+
+    static long median(List<Sample> samples, int field) {
+        long[] values = new long[samples.size()];
+        for (int i = 0; i < values.length; i++) {
+            Sample s = samples.get(i);
+            values[i] = switch (field) {
+                case 0 -> s.construction; case 1 -> s.dinic;
+                case 2 -> s.extraction; default -> s.total;
+            };
+        }
+        Arrays.sort(values);
+        int mid = values.length / 2;
+        return values.length % 2 == 1 ? values[mid]
+            : values[mid - 1] + (values[mid] - values[mid - 1]) / 2;
+    }
+    static String csv(Object... fields) {
+        StringJoiner joiner = new StringJoiner(",");
+        for (Object field : fields) joiner.add("\"" + field.toString().replace("\"", "\"\"") + "\"");
+        return joiner.toString();
+    }
+    static String parameters(Instance in) {
+        long capacitySum = 0;
+        int minimum = in.m == 0 ? 0 : Integer.MAX_VALUE, maximum = 0;
+        for (int c : in.capacities) {
+            capacitySum += c; minimum = Math.min(minimum, c); maximum = Math.max(maximum, c);
+        }
+        long vertices = (long) in.n + in.m + 2;
+        long edges = (long) in.n + in.m + in.pairs.size();
+        return csv(in.n, in.m, in.p, in.distribution, in.baseCapacity, in.seed,
+            in.pairs.size(), in.n == 0 || in.m == 0 ? 0.0 : in.pairs.size() / ((double) in.n * in.m),
+            capacitySum, minimum, maximum, vertices, edges, (double) vertices * vertices * edges);
+    }
+    static int[] ints(String value) { return Arrays.stream(value.split(",")).mapToInt(Integer::parseInt).toArray(); }
+    static long[] longs(String value) { return Arrays.stream(value.split(",")).mapToLong(Long::parseLong).toArray(); }
+    static double[] doubles(String value) { return Arrays.stream(value.split(",")).mapToDouble(Double::parseDouble).toArray(); }
+
+    public static void main(String[] args) throws IOException {
+        Map<String,String> options = new HashMap<>();
+        Set<String> allowed = Set.of("tasks", "servers", "densities", "capacities", "seeds",
+            "distributions", "warmup", "runs", "out", "order-seed", "fork");
+        for (String arg : args) {
+            if (arg.equals("--self-test")) { selfTest(); return; }
+            String[] parts = arg.split("=", 2);
+            if (parts.length != 2 || !parts[0].startsWith("--") || !allowed.contains(parts[0].substring(2)))
+                throw new IllegalArgumentException("Expected --option=value; see BENCHMARK.md");
+            options.put(parts[0].substring(2), parts[1]);
+        }
+        int[] tasks = ints(options.getOrDefault("tasks", "100,500,1000"));
+        int[] servers = ints(options.getOrDefault("servers", "25,100"));
+        double[] densities = doubles(options.getOrDefault("densities", "0.01,0.1,0.5"));
+        int[] capacities = ints(options.getOrDefault("capacities", "4"));
+        long[] seeds = longs(options.getOrDefault("seeds", "11,29,47"));
+        Distribution[] distributions = Arrays.stream(options.getOrDefault("distributions", "FIXED,UNIFORM,SKEWED").split(","))
+            .map(Distribution::valueOf).toArray(Distribution[]::new);
+        int warmup = Integer.parseInt(options.getOrDefault("warmup", "5"));
+        int runs = Integer.parseInt(options.getOrDefault("runs", "9"));
+        long orderSeed = Long.parseLong(options.getOrDefault("order-seed", "20261115"));
+        String fork = options.getOrDefault("fork", "1");
+        if (warmup < 1 || runs < 1) throw new IllegalArgumentException("warmup and runs must be positive");
+        for (int n : tasks) if (n < 0) throw new IllegalArgumentException("Negative task count");
+        for (int m : servers) if (m < 0) throw new IllegalArgumentException("Negative server count");
+        for (double p : densities) if (!Double.isFinite(p) || p < 0 || p > 1) throw new IllegalArgumentException("Invalid density");
+        for (int c : capacities) if (c < 0 || c > Integer.MAX_VALUE / 10) throw new IllegalArgumentException("Invalid base capacity");
+
+        // Store parameter combinations, not all generated graphs, to limit retained memory.
+        record Case(int n, int m, double p, Distribution d, int c, long seed) {}
+        List<Case> cases = new ArrayList<>();
+        for (int n : tasks) for (int m : servers) for (double p : densities)
+            for (Distribution d : distributions) for (int c : capacities) for (long seed : seeds)
+                cases.add(new Case(n,m,p,d,c,seed));
+        Collections.shuffle(cases, new Random(orderSeed));
+        Path directory = Path.of(options.getOrDefault("out", "results"));
+        Files.createDirectories(directory);
+        String prefix = "n,m,p,distribution,base_capacity,seed,r,actual_density,capacity_sum,capacity_min,capacity_max,V,E,V2E";
+        try (PrintWriter raw = new PrintWriter(Files.newBufferedWriter(directory.resolve("raw.csv"), StandardCharsets.UTF_8));
+             PrintWriter summary = new PrintWriter(Files.newBufferedWriter(directory.resolve("summary.csv"), StandardCharsets.UTF_8))) {
+            raw.println(prefix + ",fork,case_order,run,warmup_runs,measured_runs,construction_ns,dinic_ns,extraction_ns,total_ns,max_flow");
+            summary.println(prefix + ",fork,case_order,warmup_runs,measured_runs,median_construction_ns,median_dinic_ns,median_extraction_ns,median_total_ns,max_flow");
+            int caseOrder = 0;
+            for (Case c : cases) {
+                Instance in = generate(c.n,c.m,c.p,c.d,c.c,c.seed);
+                long expectedFlow = -1;
+                for (int k = 0; k < warmup; k++) expectedFlow = run(in).flow;
+                List<Sample> samples = new ArrayList<>();
+                String params = parameters(in);
+                for (int k = 0; k < runs; k++) {
+                    Sample sample = run(in);
+                    if (sample.flow != expectedFlow) throw new AssertionError("Inconsistent flow");
+                    samples.add(sample);
+                    raw.println(params + "," + csv(fork, caseOrder, k + 1, warmup, runs,
+                        sample.construction, sample.dinic, sample.extraction, sample.total, sample.flow));
+                }
+                summary.println(params + "," + csv(fork, caseOrder, warmup, runs,
+                    median(samples,0), median(samples,1), median(samples,2), median(samples,3), expectedFlow));
+                caseOrder++;
+            }
+            if (raw.checkError() || summary.checkError()) throw new IOException("CSV write failed");
+        }
+        List<String> metadata = List.of(
+            "arguments=" + Arrays.toString(args), "java.version=" + System.getProperty("java.version"),
+            "java.vm.name=" + System.getProperty("java.vm.name"),
+            "jvm.arguments=" + java.lang.management.ManagementFactory.getRuntimeMXBean().getInputArguments(),
+            "os.name=" + System.getProperty("os.name"), "os.version=" + System.getProperty("os.version"),
+            "os.arch=" + System.getProperty("os.arch"), "available.processors=" + Runtime.getRuntime().availableProcessors(),
+            "max.heap.bytes=" + Runtime.getRuntime().maxMemory(), "order.seed=" + orderSeed,
+            "fork=" + fork, "case.count=" + cases.size(), "blackhole=" + blackhole);
+        Files.write(directory.resolve("metadata.txt"), metadata, StandardCharsets.UTF_8);
+        System.out.println("Completed " + cases.size() + " cases; CSV and metadata: " + directory.toAbsolutePath());
+    }
+}
+\end{lstlisting}
+
+
+% End inlined java_appendix.tex
+
+% Begin inlined llm_disclosure.tex
+\section{AI Tools, Prompts, and Results}
+\label{app:llm-disclosure}
+
+\subsection{Tasks and Prompt Summaries}
+OpenAI Codex, an LLM-based coding assistant, was used during development
+of this project. The following summarizes the requests made to the assistant; these are
+summaries rather than a verbatim interaction transcript.
+\begin{itemize}
+\item \textbf{Prompt (summary):} Identify a real-world Cloud Task Assignment problem and formulate its mathematical abstraction.\\
+\textbf{Result:} The unit-slot task model, compatibility relation, binary formulation, and worked example were drafted.
+\item \textbf{Prompt (summary):} Construct a polynomial-time maximum-flow reduction and prove its correctness.\\
+\textbf{Result:} The network construction, both feasibility mappings, integrality argument, and equality of optimal objectives were developed.
+\item \textbf{Prompt (summary):} Design a complete algorithm using Dinic and analyze its complexity.\\
+\textbf{Result:} BFS, blocking-flow DFS, extraction, termination, and the general worst-case time and space bounds were written.
+\item \textbf{Prompt (summary):} Implement a reproducible Java benchmark with fixed seeds, warm-up, repetitions, and CSV output.\\
+\textbf{Result:} The Java implementation and benchmark harness were generated and executed through local tools.
+\item \textbf{Prompt (summary):} Analyze the measured CSVs and generate publication-quality runtime figures.\\
+\textbf{Result:} Python and Matplotlib scripts summarized measured timings, exported six PDF figures, and supported the experimental-results section.
+\item \textbf{Prompt (summary):} Review the project, assemble the LaTeX report, add references, disclose LLM use, and match the supplied report style.\\
+\textbf{Result:} The assistant executed additional checks, documented limitations, verified reference sources, and edited and compiled the single-source report.
+\end{itemize}
+
+\subsection{Execution, Data, and Verification}
+The assistant executed the Java benchmark through local command-line
+tools. The reported runtime values were produced by program execution
+using \texttt{System.nanoTime()}, rather than supplied as numerical
+predictions by the language model. Python analysis used the resulting
+CSV files. The assistant also generated the synthetic inputs through
+the documented seeded generator and selected the controlled comparisons
+described in the experimental section.
+
+Tool-assisted checks included compilation, the supplied example and
+672-instance self-test, and additional review-time tests. The latter
+covered 16,609 exhaustive small graph/capacity combinations, 2,000
+additional randomized instances, regeneration of all 162 default CSV
+instances with matching assignment/cut certificates, and a 20,000-task
+alternating-path stress test. CSV medians, timing sums, and recorded
+flow values were checked. These additional checks were performed by
+the same assistant; they are not independent human verification.
+Theoretical guarantees rest on the mathematical proof, not on finite tests.
+
+% End inlined llm_disclosure.tex
+
+\end{document}

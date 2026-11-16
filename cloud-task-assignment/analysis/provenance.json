@@ -1,0 +1,20 @@
+{
+  "source": "/Users/anushrinr/Projects/AoA-project/cloud-task-assignment/results/default",
+  "summary_cases": 162,
+  "raw_runs": 1458,
+  "python": "3.12.10",
+  "matplotlib": "3.10.8",
+  "numpy": "2.5.2",
+  "pandas": "2.3.3",
+  "sha256": {
+    "summary.csv": "816182d2c8453e91aba7bd1a22f5535985af19ce2ace004fea977dc4d4a29ec5",
+    "raw.csv": "4198ae508e909d8394bdc141ef404278ed30a74584dab9da9e11762d6ce57c63",
+    "metadata.txt": "1c6d15214e0a00ae40270d60453c0b3add67c7f29c3329cc344a25ed0599c1fc"
+  },
+  "median_raw_component_shares": {
+    "construction_share": 0.5103695331416649,
+    "dinic_share": 0.4698814623259603,
+    "extraction_share": 0.017844793088346925
+  },
+  "aggregation": "Median of per-instance medians across three seeds; bars show full seed range, not CI."
+}

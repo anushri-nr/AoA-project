@@ -1,0 +1,121 @@
+figure,series,x_name,x,metric,median,minimum,maximum,graph_seeds
+01_tasks,p = 0.01,n,100.0,total_ms,0.007833,0.00625,0.009917,3
+01_tasks,p = 0.01,n,500.0,total_ms,0.040209,0.039375,0.042208,3
+01_tasks,p = 0.01,n,1000.0,total_ms,0.087,0.068417,0.106958,3
+01_tasks,p = 0.1,n,100.0,total_ms,0.018375,0.0165,0.054042,3
+01_tasks,p = 0.1,n,500.0,total_ms,0.1145,0.110916,0.156083,3
+01_tasks,p = 0.1,n,1000.0,total_ms,0.241125,0.22775,0.306417,3
+01_tasks,p = 0.5,n,100.0,total_ms,0.070209,0.066291,0.072166,3
+01_tasks,p = 0.5,n,500.0,total_ms,0.657166,0.611709,0.709875,3
+01_tasks,p = 0.5,n,1000.0,total_ms,1.348958,1.045167,1.54275,3
+01_tasks,p = 0.01,n,100.0,dinic_ms,0.002458,0.002458,0.003041,3
+01_tasks,p = 0.01,n,500.0,dinic_ms,0.027625,0.026541,0.029375,3
+01_tasks,p = 0.01,n,1000.0,dinic_ms,0.060583,0.043375,0.061292,3
+01_tasks,p = 0.1,n,100.0,dinic_ms,0.005167,0.004791,0.009791,3
+01_tasks,p = 0.1,n,500.0,dinic_ms,0.052792,0.051625,0.063833,3
+01_tasks,p = 0.1,n,1000.0,dinic_ms,0.114,0.1125,0.119333,3
+01_tasks,p = 0.5,n,100.0,dinic_ms,0.017,0.016417,0.017125,3
+01_tasks,p = 0.5,n,500.0,dinic_ms,0.229958,0.228875,0.237542,3
+01_tasks,p = 0.5,n,1000.0,dinic_ms,0.512041,0.501958,0.530875,3
+02_edges,FIXED,r,50116.0,total_ms,1.54275,1.54275,1.54275,1
+02_edges,FIXED,r,49985.0,total_ms,1.348958,1.348958,1.348958,1
+02_edges,FIXED,r,10013.0,total_ms,0.306417,0.306417,0.306417,1
+02_edges,FIXED,r,1014.0,total_ms,0.106958,0.106958,0.106958,1
+02_edges,FIXED,r,9992.0,total_ms,0.241125,0.241125,0.241125,1
+02_edges,FIXED,r,50225.0,total_ms,1.045167,1.045167,1.045167,1
+02_edges,FIXED,r,9945.0,total_ms,0.22775,0.22775,0.22775,1
+02_edges,FIXED,r,980.0,total_ms,0.068417,0.068417,0.068417,1
+02_edges,FIXED,r,1033.0,total_ms,0.087,0.087,0.087,1
+02_edges,SKEWED,r,50116.0,total_ms,1.319792,1.319792,1.319792,1
+02_edges,SKEWED,r,1014.0,total_ms,0.04925,0.04925,0.04925,1
+02_edges,SKEWED,r,49985.0,total_ms,1.018375,1.018375,1.018375,1
+02_edges,SKEWED,r,50225.0,total_ms,1.025292,1.025292,1.025292,1
+02_edges,SKEWED,r,980.0,total_ms,0.046709,0.046709,0.046709,1
+02_edges,SKEWED,r,1033.0,total_ms,0.047334,0.047334,0.047334,1
+02_edges,SKEWED,r,9945.0,total_ms,0.230917,0.230917,0.230917,1
+02_edges,SKEWED,r,10013.0,total_ms,0.242625,0.242625,0.242625,1
+02_edges,SKEWED,r,9992.0,total_ms,0.228208,0.228208,0.228208,1
+02_edges,UNIFORM,r,49985.0,total_ms,2.061042,2.061042,2.061042,1
+02_edges,UNIFORM,r,50225.0,total_ms,1.438958,1.438958,1.438958,1
+02_edges,UNIFORM,r,10013.0,total_ms,0.321125,0.321125,0.321125,1
+02_edges,UNIFORM,r,1014.0,total_ms,0.107625,0.107625,0.107625,1
+02_edges,UNIFORM,r,50116.0,total_ms,1.062042,1.062042,1.062042,1
+02_edges,UNIFORM,r,9945.0,total_ms,0.233583,0.233583,0.233583,1
+02_edges,UNIFORM,r,1033.0,total_ms,0.067666,0.067666,0.067666,1
+02_edges,UNIFORM,r,9992.0,total_ms,0.227542,0.227542,0.227542,1
+02_edges,UNIFORM,r,980.0,total_ms,0.068792,0.068792,0.068792,1
+02_edges,FIXED,r,50116.0,dinic_ms,0.530875,0.530875,0.530875,1
+02_edges,FIXED,r,49985.0,dinic_ms,0.512041,0.512041,0.512041,1
+02_edges,FIXED,r,10013.0,dinic_ms,0.114,0.114,0.114,1
+02_edges,FIXED,r,1014.0,dinic_ms,0.060583,0.060583,0.060583,1
+02_edges,FIXED,r,9992.0,dinic_ms,0.119333,0.119333,0.119333,1
+02_edges,FIXED,r,50225.0,dinic_ms,0.501958,0.501958,0.501958,1
+02_edges,FIXED,r,9945.0,dinic_ms,0.1125,0.1125,0.1125,1
+02_edges,FIXED,r,980.0,dinic_ms,0.043375,0.043375,0.043375,1
+02_edges,FIXED,r,1033.0,dinic_ms,0.061292,0.061292,0.061292,1
+02_edges,SKEWED,r,50116.0,dinic_ms,0.472167,0.472167,0.472167,1
+02_edges,SKEWED,r,1014.0,dinic_ms,0.022709,0.022709,0.022709,1
+02_edges,SKEWED,r,49985.0,dinic_ms,0.482583,0.482583,0.482583,1
+02_edges,SKEWED,r,50225.0,dinic_ms,0.489334,0.489334,0.489334,1
+02_edges,SKEWED,r,980.0,dinic_ms,0.022583,0.022583,0.022583,1
+02_edges,SKEWED,r,1033.0,dinic_ms,0.023125,0.023125,0.023125,1
+02_edges,SKEWED,r,9945.0,dinic_ms,0.11375,0.11375,0.11375,1
+02_edges,SKEWED,r,10013.0,dinic_ms,0.119916,0.119916,0.119916,1
+02_edges,SKEWED,r,9992.0,dinic_ms,0.109125,0.109125,0.109125,1
+02_edges,UNIFORM,r,49985.0,dinic_ms,1.179584,1.179584,1.179584,1
+02_edges,UNIFORM,r,50225.0,dinic_ms,0.518,0.518,0.518,1
+02_edges,UNIFORM,r,10013.0,dinic_ms,0.118667,0.118667,0.118667,1
+02_edges,UNIFORM,r,1014.0,dinic_ms,0.067583,0.067583,0.067583,1
+02_edges,UNIFORM,r,50116.0,dinic_ms,0.508625,0.508625,0.508625,1
+02_edges,UNIFORM,r,9945.0,dinic_ms,0.115375,0.115375,0.115375,1
+02_edges,UNIFORM,r,1033.0,dinic_ms,0.041875,0.041875,0.041875,1
+02_edges,UNIFORM,r,9992.0,dinic_ms,0.112042,0.112042,0.112042,1
+02_edges,UNIFORM,r,980.0,dinic_ms,0.043125,0.043125,0.043125,1
+03_servers,p = 0.01,m,25.0,total_ms,0.059458,0.044208,0.202416,3
+03_servers,p = 0.01,m,100.0,total_ms,0.087,0.068417,0.106958,3
+03_servers,p = 0.1,m,25.0,total_ms,0.10675,0.07725,0.147958,3
+03_servers,p = 0.1,m,100.0,total_ms,0.241125,0.22775,0.306417,3
+03_servers,p = 0.5,m,25.0,total_ms,0.270667,0.265208,0.282666,3
+03_servers,p = 0.5,m,100.0,total_ms,1.348958,1.045167,1.54275,3
+03_servers,p = 0.01,m,25.0,dinic_ms,0.0155,0.014792,0.132667,3
+03_servers,p = 0.01,m,100.0,dinic_ms,0.060583,0.043375,0.061292,3
+03_servers,p = 0.1,m,25.0,dinic_ms,0.039125,0.037125,0.039125,3
+03_servers,p = 0.1,m,100.0,dinic_ms,0.114,0.1125,0.119333,3
+03_servers,p = 0.5,m,25.0,dinic_ms,0.135583,0.132375,0.145125,3
+03_servers,p = 0.5,m,100.0,dinic_ms,0.512041,0.501958,0.530875,3
+04_density,Fixed,p,0.01,total_ms,0.087,0.068417,0.106958,3
+04_density,Fixed,p,0.1,total_ms,0.241125,0.22775,0.306417,3
+04_density,Fixed,p,0.5,total_ms,1.348958,1.045167,1.54275,3
+04_density,Skewed,p,0.01,total_ms,0.047334,0.046709,0.04925,3
+04_density,Skewed,p,0.1,total_ms,0.230917,0.228208,0.242625,3
+04_density,Skewed,p,0.5,total_ms,1.025292,1.018375,1.319792,3
+04_density,Uniform,p,0.01,total_ms,0.068792,0.067666,0.107625,3
+04_density,Uniform,p,0.1,total_ms,0.233583,0.227542,0.321125,3
+04_density,Uniform,p,0.5,total_ms,1.438958,1.062042,2.061042,3
+04_density,Fixed,p,0.01,dinic_ms,0.060583,0.043375,0.061292,3
+04_density,Fixed,p,0.1,dinic_ms,0.114,0.1125,0.119333,3
+04_density,Fixed,p,0.5,dinic_ms,0.512041,0.501958,0.530875,3
+04_density,Skewed,p,0.01,dinic_ms,0.022709,0.022583,0.023125,3
+04_density,Skewed,p,0.1,dinic_ms,0.11375,0.109125,0.119916,3
+04_density,Skewed,p,0.5,dinic_ms,0.482583,0.472167,0.489334,3
+04_density,Uniform,p,0.01,dinic_ms,0.043125,0.041875,0.067583,3
+04_density,Uniform,p,0.1,dinic_ms,0.115375,0.112042,0.118667,3
+04_density,Uniform,p,0.5,dinic_ms,0.518,0.508625,1.179584,3
+05_components_FIXED,Construction,p,0.01,construction_ms,0.025,0.024541,0.043291,3
+05_components_FIXED,Construction,p,0.1,construction_ms,0.112125,0.10975,0.185958,3
+05_components_FIXED,Construction,p,0.5,construction_ms,0.822417,0.501833,0.949708,3
+05_components_FIXED,Dinic,p,0.01,dinic_ms,0.060583,0.043375,0.061292,3
+05_components_FIXED,Dinic,p,0.1,dinic_ms,0.114,0.1125,0.119333,3
+05_components_FIXED,Dinic,p,0.5,dinic_ms,0.512041,0.501958,0.530875,3
+05_components_SKEWED,Construction,p,0.01,construction_ms,0.023917,0.023792,0.026,3
+05_components_SKEWED,Construction,p,0.1,construction_ms,0.111042,0.109791,0.118209,3
+05_components_SKEWED,Construction,p,0.5,construction_ms,0.514958,0.490958,0.7885,3
+05_components_SKEWED,Dinic,p,0.01,dinic_ms,0.022709,0.022583,0.023125,3
+05_components_SKEWED,Dinic,p,0.1,dinic_ms,0.11375,0.109125,0.119916,3
+05_components_SKEWED,Dinic,p,0.5,dinic_ms,0.482583,0.472167,0.489334,3
+05_components_UNIFORM,Construction,p,0.01,construction_ms,0.024959,0.024875,0.042167,3
+05_components_UNIFORM,Construction,p,0.1,construction_ms,0.111958,0.108583,0.193417,3
+05_components_UNIFORM,Construction,p,0.5,construction_ms,0.834292,0.534167,0.873917,3
+05_components_UNIFORM,Dinic,p,0.01,dinic_ms,0.043125,0.041875,0.067583,3
+05_components_UNIFORM,Dinic,p,0.1,dinic_ms,0.115375,0.112042,0.118667,3
+05_components_UNIFORM,Dinic,p,0.5,dinic_ms,0.518,0.508625,1.179584,3
