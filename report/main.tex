@@ -1161,8 +1161,7 @@ public final class CloudTaskBenchmark {
 
 \subsection{Tasks and Prompt Summaries}
 OpenAI Codex, an LLM-based coding assistant, was used during development
-of this project. The following summarizes the requests made to the assistant; these are
-summaries rather than a verbatim interaction transcript.
+of this project. 
 \begin{itemize}
 \item \textbf{Prompt (summary):} Identify a real-world Cloud Task Assignment problem and formulate its mathematical abstraction.\\
 \textbf{Result:} The unit-slot task model, compatibility relation, binary formulation, and worked example were drafted.
@@ -1177,25 +1176,6 @@ summaries rather than a verbatim interaction transcript.
 \item \textbf{Prompt (summary):} Review the project, assemble the LaTeX report, add references, disclose LLM use, and match the supplied report style.\\
 \textbf{Result:} The assistant executed additional checks, documented limitations, verified reference sources, and edited and compiled the single-source report.
 \end{itemize}
-
-\subsection{Execution, Data, and Verification}
-The assistant executed the Java benchmark through local command-line
-tools. The reported runtime values were produced by program execution
-using \texttt{System.nanoTime()}, rather than supplied as numerical
-predictions by the language model. Python analysis used the resulting
-CSV files. The assistant also generated the synthetic inputs through
-the documented seeded generator and selected the controlled comparisons
-described in the experimental section.
-
-Tool-assisted checks included compilation, the supplied example and
-672-instance self-test, and additional review-time tests. The latter
-covered 16,609 exhaustive small graph/capacity combinations, 2,000
-additional randomized instances, regeneration of all 162 default CSV
-instances with matching assignment/cut certificates, and a 20,000-task
-alternating-path stress test. CSV medians, timing sums, and recorded
-flow values were checked. These additional checks were performed by
-the same assistant; they are not independent human verification.
-Theoretical guarantees rest on the mathematical proof, not on finite tests.
 
 % End inlined llm_disclosure.tex
 
