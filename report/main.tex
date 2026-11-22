@@ -122,9 +122,10 @@ algorithm that runs in $O(km + N + n)$ time and returns at most
 $H(d) \le \ln d + 1$ times the optimal number of tests. Java implementations
 and reproducible benchmarks accompany both parts. The measured running times
 are analyzed separately from the theoretical worst-case bounds; for the
-greedy algorithm they match the fitted model with $R^2 = 0.992$, and on 630
-small instances greedy is optimal 61\% of the time and never worse than
-1.43 times the optimum.
+greedy algorithm they are consistent with the $O(km + N + n)$ analysis at
+larger sizes, with deviations from fixed overheads on small inputs and from
+memory effects on dense ones, and on 630 small instances greedy is optimal
+61\% of the time and never worse than 1.43 times the optimum.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -1205,7 +1206,12 @@ scattered counter updates), we fitted one constant per term,
 T(m,n,N) \approx a\cdot km + b\cdot (N + n),
 \]
 by non-negative least squares over both families, obtaining
-$a = 0.186$~ns, $b = 3.07$~ns and $R^2 = 0.992$.
+$a = 0.181$~ns and $b = 3.18$~ns. The model therefore has two free constants
+fitted to the same 18 points on which it is evaluated. Its coefficient of
+determination on absolute times is $R^2 = 0.991$, but that figure is
+dominated by the largest dense instances, which take the most time. On a log
+scale, which weights every instance equally, $R^2$ is 0.93 overall, 0.69 for
+the sparse family and 0.98 for the dense family.
 
 \begin{figure}[t]
 \centering
@@ -1218,9 +1224,9 @@ and the fitted model $a\cdot km + b\cdot(N+n)$ (dashed).}
 \begin{figure}[t]
 \centering
 \includegraphics[width=\columnwidth]{figures/ratio.png}
-\caption{Ratio of measured time to the fitted model. A flat line at 1 means
-the time grows exactly as the analysis predicts. The sparse ratio for the two
-smallest sizes (4.4 and 4.0) is cut off.}
+\caption{Ratio of measured time to the fitted model. A flat line at 1 would
+mean that time is proportional to the model. The sparse ratio for the two
+smallest sizes (4.1 and 2.4) is cut off.}
 \label{fig:ratio}
 \end{figure}
 
@@ -1236,31 +1242,35 @@ smallest sizes (4.4 and 4.0) is cut off.}
 \cmidrule(lr){2-4}\cmidrule(l){5-7}
 $m = n$ & $N$ & $k$ & ms & $N$ & $k$ & ms \\
 \midrule
-500    &   9{,}904 &    45 & 0.158 &    12{,}454 & 38 &  0.036 \\
-1{,}000  &  19{,}810 &    86 & 0.320 &    49{,}872 & 43 &  0.105 \\
-2{,}000  &  40{,}140 &   175 & 0.265 &   200{,}017 & 51 &  0.466 \\
-3{,}000  &  59{,}982 &   253 & 0.352 &   449{,}830 & 54 &  1.060 \\
-4{,}000  &  79{,}890 &   343 & 0.523 &   800{,}248 & 57 &  1.728 \\
-6{,}000  & 119{,}651 &   512 & 0.961 & 1{,}798{,}679 & 63 &  4.140 \\
-8{,}000  & 159{,}877 &   695 & 1.620 & 3{,}201{,}885 & 67 &  9.145 \\
-10{,}000 & 200{,}184 &   858 & 2.306 & 4{,}997{,}856 & 70 & 15.071 \\
-12{,}000 & 239{,}702 & 1{,}046 & 3.076 & 7{,}197{,}823 & 74 & 23.426 \\
+500    &   9{,}904 &    45 & 0.151 &    12{,}454 & 38 &  0.034 \\
+1{,}000  &  19{,}810 &    86 & 0.198 &    49{,}872 & 43 &  0.119 \\
+2{,}000  &  40{,}140 &   175 & 0.286 &   200{,}017 & 51 &  0.456 \\
+3{,}000  &  59{,}982 &   253 & 0.403 &   449{,}830 & 54 &  1.025 \\
+4{,}000  &  79{,}890 &   343 & 0.551 &   800{,}248 & 57 &  1.693 \\
+6{,}000  & 119{,}651 &   512 & 0.949 & 1{,}798{,}679 & 63 &  4.224 \\
+8{,}000  & 159{,}877 &   695 & 1.570 & 3{,}201{,}885 & 67 &  9.389 \\
+10{,}000 & 200{,}184 &   858 & 2.314 & 4{,}997{,}856 & 70 & 15.428 \\
+12{,}000 & 239{,}702 & 1{,}046 & 3.032 & 7{,}197{,}823 & 74 & 24.491 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 Fig.~\ref{fig:runtime} and Table~\ref{tab:runtime} show the measurements, and
-Fig.~\ref{fig:ratio} the ratio of measured to modeled time. For the sparse
-family the ratio stays between 0.99 and 1.05 from $m = 3{,}000$ upward, so the
-running time grows exactly as the analysis predicts. Below that size the runs
-take a fraction of a millisecond, and fixed costs that the model ignores, such
-as allocating the arrays and the resolution of the timer, dominate. For the
-dense family the ratio stays between 0.64 and 0.82 up to $m = 6{,}000$ and
-then rises to 1.05 as $N$ grows to $7.2\times 10^6$. A likely explanation is the memory
-hierarchy: the gain updates jump around the counter array, and once the
-inverted index no longer fits in the processor's cache each update costs more.
-The number of operations still follows the analysis; only the cost per
-operation changes, which a constant-cost model cannot capture.
+Fig.~\ref{fig:ratio} the ratio of measured to modeled time. The agreement is
+good at larger sizes but not uniform. For the sparse family the ratio stays
+between 0.99 and 1.07 from $m = 4{,}000$ upward, but it is 1.2 to 4.1 below
+that size, where the runs take a fraction of a millisecond and fixed costs
+that the model ignores, such as allocating the arrays and the resolution of
+the timer, dominate. For the dense family the ratio stays between 0.65 and
+0.75 up to $m = 6{,}000$ and then rises to 1.06 as $N$ grows to
+$7.2\times 10^6$. A plausible explanation is the memory hierarchy: the gain
+updates jump around the counter array, and once the inverted index no longer
+fits in the processor's cache each update may cost more. We did not measure
+cache behavior, so this remains a hypothesis. Over $m \ge 2{,}000$, time grows
+roughly as $(km+N+n)^{0.70}$ in the sparse family and $(km+N+n)^{1.22}$ in the
+dense family, against an exponent of 1 for exact proportionality. The
+measurements are therefore consistent with the $O(km + N + n)$ bound at larger
+sizes, but a constant-cost model does not describe them exactly.
 
 \begin{figure}[t]
 \centering
@@ -1307,9 +1317,11 @@ The instances are random and synthetic, and each was timed in a single JVM
 process. Real test suites have structured coverage, with groups of tests that
 overlap heavily, so greedy's quality on them may differ from
 Table~\ref{tab:quality}. The quality comparison is limited to small instances
-because the exact solver takes exponential time. These measurements show how
-the algorithm scales on the tested inputs; they do not prove the worst-case
-bound, which comes from the analysis above.
+because the exact solver takes exponential time. The runtime model has two
+constants fitted to the same points it is compared with, so its agreement
+indicates consistency rather than independent confirmation. These
+measurements show how the algorithm scales on the tested inputs; they do not
+prove the worst-case bound, which comes from the analysis above.
 
 \section{Conclusion}
 Under the unit-slot assumptions, cloud task admission and placement is
@@ -1327,8 +1339,9 @@ Regression test-suite minimization is a set-covering problem in disguise. The
 reduction from \VC{} shows that it is NP-complete even when every requirement is
 checked by exactly two tests, so we do not expect an efficient exact algorithm.
 The greedy rule of always running the test that checks the most unchecked
-requirements runs in $O(km + N + n)$ time, which our experiments confirmed
-($R^2 = 0.992$), and it is guaranteed to be within a factor $H(d)$ of optimal.
+requirements runs in $O(km + N + n)$ time, which our measurements are
+consistent with at larger sizes, and it is guaranteed to be within a factor
+$H(d)$ of optimal.
 In practice it did much better than that guarantee: on 630 random instances it
 was optimal 61\% of the time and never more than 1.43 times the optimum.
 Natural extensions are tests with different running times (weighted set cover)
@@ -2708,6 +2721,10 @@ def read(name):
         return list(csv.DictReader(f))
 
 
+def r2(y, f):
+    return 1 - np.sum((y - f) ** 2) / np.sum((y - y.mean()) ** 2)
+
+
 def save(fig, name):
     fig.tight_layout()
     fig.savefig(FIGURES / name, dpi=300)
@@ -2724,8 +2741,13 @@ def runtime_figures():
 
     (a, b), _ = nnls(np.column_stack([km, nn]), ms)
     model = a * km + b * nn
-    r2 = 1 - np.sum((ms - model) ** 2) / np.sum((ms - ms.mean()) ** 2)
-    print(f"a = {a * 1e6:.3f} ns, b = {b * 1e6:.3f} ns, R^2 = {r2:.4f}")
+    print(f"a = {a * 1e6:.3f} ns, b = {b * 1e6:.3f} ns")
+    print(f"R^2 absolute = {r2(ms, model):.4f}, log scale = {r2(np.log(ms), np.log(model)):.4f}")
+    for fam in ("sparse", "dense"):
+        s = family == fam
+        slope = np.polyfit(np.log((km + nn)[s & (m >= 2000)]), np.log(ms[s & (m >= 2000)]), 1)[0]
+        print(f"{fam}: log-scale R^2 = {r2(np.log(ms[s]), np.log(model[s])):.4f}, "
+              f"log-log slope vs km+N+n (m >= 2000) = {slope:.2f}")
 
     fig, ax = plt.subplots(figsize=(3.5, 2.5))
     for fam in ("sparse", "dense"):

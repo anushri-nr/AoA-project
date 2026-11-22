@@ -30,6 +30,10 @@ def read(name):
         return list(csv.DictReader(f))
 
 
+def r2(y, f):
+    return 1 - np.sum((y - f) ** 2) / np.sum((y - y.mean()) ** 2)
+
+
 def save(fig, name):
     fig.tight_layout()
     fig.savefig(FIGURES / name, dpi=300)
@@ -46,8 +50,13 @@ def runtime_figures():
 
     (a, b), _ = nnls(np.column_stack([km, nn]), ms)
     model = a * km + b * nn
-    r2 = 1 - np.sum((ms - model) ** 2) / np.sum((ms - ms.mean()) ** 2)
-    print(f"a = {a * 1e6:.3f} ns, b = {b * 1e6:.3f} ns, R^2 = {r2:.4f}")
+    print(f"a = {a * 1e6:.3f} ns, b = {b * 1e6:.3f} ns")
+    print(f"R^2 absolute = {r2(ms, model):.4f}, log scale = {r2(np.log(ms), np.log(model)):.4f}")
+    for fam in ("sparse", "dense"):
+        s = family == fam
+        slope = np.polyfit(np.log((km + nn)[s & (m >= 2000)]), np.log(ms[s & (m >= 2000)]), 1)[0]
+        print(f"{fam}: log-scale R^2 = {r2(np.log(ms[s]), np.log(model[s])):.4f}, "
+              f"log-log slope vs km+N+n (m >= 2000) = {slope:.2f}")
 
     fig, ax = plt.subplots(figsize=(3.5, 2.5))
     for fam in ("sparse", "dense"):

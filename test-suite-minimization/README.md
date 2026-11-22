@@ -22,11 +22,11 @@ baseline, the reduction, and benchmarks.
 Requires Java 17+ and Maven.
 
 ```bash
-mvn test                                   # unit tests
+mvn test                                  
 mvn -q compile
 java -cp target/classes testmin.bench.RuntimeBenchmark results
 java -cp target/classes testmin.bench.QualityBenchmark results
-python3 scripts/plot.py results            # needs matplotlib, numpy, scipy
+python3 scripts/plot.py results            
 ```
 
 ## Complexity
@@ -40,10 +40,13 @@ python3 scripts/plot.py results            # needs matplotlib, numpy, scipy
 
 ## Results summary (from the included run)
 
-* Runtime: fitted model `time ≈ 0.20 ns·(k·m) + 9.4 ns·(N + n)`, R² = 0.978.
-  The per-unit costs differ because the k·m term is a sequential scan while the
-  N term does scattered memory updates. The sparse family tracks the model
-  closely above m = 3000. The dense family's ratio rises from about 0.5 to 1.1 as
-  the data outgrows the CPU caches.
-* Quality: greedy was optimal in most small instances. The mean ratio to the optimum
-  was 1.05 and the worst was 1.43, far below the theoretical H(d) bound (≥ 2.28).
+* Runtime: fitted model `time ≈ 0.18 ns·(k·m) + 3.2 ns·(N + n)` (two constants
+  fitted to the same 18 points). R² = 0.991 on absolute time, 0.93 on a log
+  scale (sparse 0.69, dense 0.98). The sparse family's ratio of measured time to
+  the model is 0.99–1.07 from m = 4000 up, but higher on small inputs, where fixed
+  overheads dominate. The dense family's ratio stays at about 0.65–0.75 up to
+  m = 6000, then rises to 1.06, possibly due to cache effects (not measured). The
+  measurements are consistent with O(k·m + N + n) at larger sizes.
+* Quality: on 630 small instances, greedy was optimal 61% of the time. The mean
+  ratio to the optimum was 1.05 and the worst was 1.43, far below the theoretical
+  H(d) bound (≥ 2.28).
